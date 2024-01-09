@@ -25,12 +25,13 @@ public class ScenarioServiceImpl extends ServiceImpl<ScenarioMapper, Scenario> i
         scenario.setPatientId(patientId);
         scenario.setCategory(sport.getCategory());
         scenario.setDuration(sport.getDuration());
+        int weight=70;
 
         Profile profile = profileService.getByPatientId(patientId.toString());
-        if (profile == null) {
-            return false;
+        if (profile != null && profile.getWeight() != null&&profile.getWeight()>0) {
+            weight = profile.getWeight();
+            System.out.println("weight: " + weight);
         }
-        Integer weight = profile.getWeight();
 
         Integer calories = CalorieCalculator.getCalorie(sport.getCategory(), sport.getDuration(), weight);
 

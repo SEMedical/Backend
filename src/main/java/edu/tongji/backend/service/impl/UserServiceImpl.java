@@ -11,6 +11,7 @@ import edu.tongji.backend.mapper.UserMapper;
 import edu.tongji.backend.service.IUserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -52,30 +53,34 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
     // 病人注册
     @Override
+    @Transactional
     public Integer register(String name, String password, String contact, String gender, Integer age){
-        QueryWrapper<User> wrapper = new QueryWrapper<>();
-        wrapper.select("user_id")
-                .eq("contact", contact);
-        var result = userMapper.selectOne(wrapper);
-        if(result != null){
-            return -1;  // 手机号已被注册
-        }
+            QueryWrapper<User> wrapper = new QueryWrapper<>();
+            wrapper.select("user_id")
+                    .eq("contact", contact);
+            var result = userMapper.selectOne(wrapper);
+            if (result != null) {
+                return -1;  // 手机号已被注册
+            }
 
-        User user = new User();
-        user.setName(name);
-        user.setContact(contact);
-        user.setPassword(password);
-        user.setRole("patient");
-        int userNum = userMapper.insert(user);
+            User user = new User();
+            user.setName(name);
+            user.setContact(contact);
+            user.setPassword(password);
+            user.setRole("patient");
+            int userNum = userMapper.insert(user);
+            result = userMapper.selectOne(wrapper);
+            Profile profile = new Profile();
+            profile.setPatientId(result.getUserId());
+            System.out.println("The UID:"+result.getUserId());
+            profile.setGender(gender);
+            profile.setAge(age);
+            int profileNum = profileMapper.insert(profile);
+            System.out.println("userNum: " + userNum + ", profileNum: " + profileNum);
+            if(userNum==1&&profileNum==0)
+                throw new RuntimeException("Register failed,rollback!");
+            return userNum == 1 && profileNum == 1 ? 1 : 0;
 
-        result = userMapper.selectOne(wrapper);
-        Profile profile = new Profile();
-        profile.setPatientId(result.getUserId());
-        profile.setGender(gender);
-        profile.setAge(age);
-        int profileNum = profileMapper.insert(profile);
-
-        return userNum == 1 && profileNum == 1 ? 1 : 0;
     }
 
     // 医生注册

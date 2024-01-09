@@ -27,7 +27,7 @@ public class Jwt {
        jwt = jwt.substring(7);
         return Jwts.parser()
                 .setSigningKey(key)
-                .build().parseSignedClaims(jwt)
+                .parseClaimsJws(jwt)
                 .getBody();
     }
 }

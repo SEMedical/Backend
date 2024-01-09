@@ -3,26 +3,29 @@ package edu.tongji.backend.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import edu.tongji.backend.dto.*;
-import edu.tongji.backend.entity.Examine;
-import edu.tongji.backend.entity.Exercise;
-import edu.tongji.backend.entity.Running;
-import edu.tongji.backend.entity.Scenario;
-import edu.tongji.backend.exception.ExerciseException;
 import edu.tongji.backend.entity.*;
+import edu.tongji.backend.exception.ExerciseException;
 import edu.tongji.backend.mapper.ExamineMapper;
 import edu.tongji.backend.mapper.ExerciseMapper;
 import edu.tongji.backend.mapper.RunningMapper;
 import edu.tongji.backend.mapper.ScenarioMapper;
 import edu.tongji.backend.service.IExerciseService;
+import edu.tongji.backend.service.IProfileService;
 import edu.tongji.backend.util.CalorieCalculator;
+import edu.tongji.backend.util.GlobalEventChecker;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cglib.core.Local;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.text.SimpleDateFormat;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
+import static java.lang.Thread.sleep;
 
 @Service
 public class ExerciseServiceImpl extends ServiceImpl<ExerciseMapper, Exercise> implements IExerciseService {
@@ -36,6 +39,8 @@ public class ExerciseServiceImpl extends ServiceImpl<ExerciseMapper, Exercise> i
     RunningMapper runningMapper;
     @Autowired
     RunningServiceImpl runningService;
+    @Autowired
+    IProfileService profileService;
 
     @Override
     public Intervals getExerciseIntervalsInOneDay(String category,String userId, String date) {
@@ -60,7 +65,9 @@ public class ExerciseServiceImpl extends ServiceImpl<ExerciseMapper, Exercise> i
     }
 
     @Override
+    @Transactional
     public Integer addExercise(String userId) {
+        finishExercise(userId);
         int user_id = Integer.parseInt(userId);
         Exercise exercise = new Exercise();
         exercise.setPatientId(user_id);
@@ -88,18 +95,31 @@ public class ExerciseServiceImpl extends ServiceImpl<ExerciseMapper, Exercise> i
         System.out.println("插入exercise表成功，exercise_id为"+insert_exercise);
         int insert_running=1;
         //如果是跑步，还要往running表里插入一条记录
-        if (exercise.getCategory().equalsIgnoreCase("running")||exercise.getCategory().equalsIgnoreCase("jogging")) {
+        if (exercise.getCategory().equalsIgnoreCase("walking")||exercise.getCategory().equalsIgnoreCase("jogging")) {
             Running running = new Running();
             running.setExerciseId(insert_exercise);
             //running表里有：distance,pace
             //他们是随着运动过程中不断变化的
             insert_running=runningMapper.insert(running);
         }
+        GlobalEventChecker.getScheduler().schedule(() -> checkStopExercise(exercise_id), 1, TimeUnit.HOURS);
         return insert_exercise*insert_running;
     }
+    private void checkStopExercise(int id)  {
+        // 在这里添加逻辑，检查是否在60分钟内完成了CompletableFuture
+        System.out.println("Checking if Function finishExercise is called within 60 minutes.");
 
+        if (GlobalEventChecker.getBCalledFuture().isDone()) {
+            System.out.println("Function finishExercise is called within 60 minutes.");
+        } else {
+            System.out.println("Remove the record of"+id+"in exercise table and running table");
+            runningMapper.deleteById(id);
+            exerciseMapper.deleteById(id);
+        }
+    }
     @Override
     public Integer finishExercise(String userId) {//它应该要结束当前用户的所有运动记录
+        GlobalEventChecker.getBCalledFuture().complete(null);
         int user_id = Integer.parseInt(userId);
         QueryWrapper<Exercise> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("patient_id", user_id).eq("duration", 0);
@@ -107,15 +127,11 @@ public class ExerciseServiceImpl extends ServiceImpl<ExerciseMapper, Exercise> i
         if (exercises.isEmpty())
             return null;
         //获取用户体重数据
-        double weight = 70;
-        QueryWrapper<Examine> examineQueryWrapper = new QueryWrapper<>();
-        examineQueryWrapper.eq("patient_id", user_id).gt("weight", 0);
-        List<Examine> examines = examineMapper.selectList(examineQueryWrapper);
-        if (examines.isEmpty())
-            ;
-        else {
-            Examine last_examine = examines.get(examines.size() - 1);
-            weight = last_examine.getWeight();
+        int weight=70;
+        Profile profile = profileService.getByPatientId(userId);
+        if (profile != null && profile.getWeight() != null&&profile.getWeight()>0) {
+            weight = profile.getWeight();
+            System.out.println("weight: " + weight);
         }
 //转换时区
         ZoneId currentZoneId = ZoneId.systemDefault();
@@ -132,7 +148,7 @@ public class ExerciseServiceImpl extends ServiceImpl<ExerciseMapper, Exercise> i
             int calorie = CalorieCalculator.getCalorie(category.toLowerCase(), weight, duration);
             last_exercise.setCalorie(calorie);
             //更新distance
-            if(category.equalsIgnoreCase("running")||category.equalsIgnoreCase("jogging"))
+            if(category.equalsIgnoreCase("walking")||category.equalsIgnoreCase("jogging"))
             {
                 Running running=runningService.updateRunning(last_exercise.getExerciseId());
                 if(running!=null)
@@ -145,7 +161,7 @@ public class ExerciseServiceImpl extends ServiceImpl<ExerciseMapper, Exercise> i
             exerciseQueryWrapper.eq("exercise_id", last_exercise.getExerciseId());
             res*= exerciseMapper.update(last_exercise, exerciseQueryWrapper);
             if (res > 0)
-                System.out.println("更新exercise表成功，exercise_id为" + last_exercise.getExerciseId());
+                System.out.println("结束exercise成功，exercise_id为" + last_exercise.getExerciseId());
             else
                 break;
         }
@@ -237,7 +253,7 @@ System.out.println("这一天的日期是"+exercise.getStartTime().toLocalDate()
                 sum_duration += exercise.getDuration();
                 int exercise_id = exercise.getExerciseId();
                 System.out.println("exercise_id为"+exercise_id);
-                if (category.equalsIgnoreCase("running") || category.equalsIgnoreCase("jogging"))
+                if (category.equalsIgnoreCase("walking") || category.equalsIgnoreCase("jogging"))
                 {
                     //根据exercise_id查找running表
                     Running running=runningMapper.getByExerciseIdRunning(exercise_id);
@@ -260,7 +276,7 @@ System.out.println("这一天的日期是"+exercise.getStartTime().toLocalDate()
         //把minute_space格式化为xx分xx秒这样的字符串
         //如果不是跑步，就返回空字符串
         String mean_speed="";
-        if (category.equalsIgnoreCase("running") || category.equalsIgnoreCase("jogging"))
+        if (category.equalsIgnoreCase("walking") || category.equalsIgnoreCase("jogging"))
             mean_speed = String.format("%d分%d秒",mean_pace/60,mean_pace%60);
         //类似地，处理sum_duration，它的单位是分钟
         String sum_duration_str;
@@ -310,15 +326,12 @@ System.out.println("这一天的日期是"+exercise.getStartTime().toLocalDate()
     public RealTimeSportDTO getRealTimeSport(String userId){
         int user_id = Integer.parseInt(userId);
         //获取用户体重数据
-        double weight = 70;
-        QueryWrapper<Examine> examineQueryWrapper = new QueryWrapper<>();
-        examineQueryWrapper.eq("patient_id", user_id).gt("weight", 0);
-        List<Examine> examines = examineMapper.selectList(examineQueryWrapper);
-        if (examines.isEmpty())
-            ;
-        else {//找到最近一次的体检记录
-            Examine last_examine = examines.get(examines.size() - 1);
-            weight = last_examine.getWeight();
+        int weight=70;
+
+        Profile profile = profileService.getByPatientId(userId);
+        if (profile != null && profile.getWeight() != null&&profile.getWeight()>0) {
+            weight = profile.getWeight();
+            System.out.println("weight: " + weight);
         }
         RealTimeSportDTO ans = new RealTimeSportDTO();
         LocalDateTime now = LocalDateTime.now();
@@ -332,16 +345,14 @@ System.out.println("这一天的日期是"+exercise.getStartTime().toLocalDate()
         exercises.sort(new Comparator<Exercise>() {
             @Override
             public int compare(Exercise o1, Exercise o2) {
-                return o2.getStartTime().compareTo(o1.getStartTime());
+                return (o2.getExerciseId()>o1.getExerciseId())? 1:-1;
             }
         });
         Exercise last_exercise = exercises.get(0);
         System.out.println("最近一次运动的id为"+last_exercise.getExerciseId());
         //统一时区，把start_time转为当前时区
         ZoneId currentZoneId = ZoneId.systemDefault();
-        System.out.println("当前时区：" + currentZoneId);
         ZonedDateTime start_time0 = last_exercise.getStartTime().atZone(ZoneId.of("UTC") );//默认是用UTC
-        System.out.println("转换前的时间：" + start_time0);
         LocalDateTime start_time = start_time0.withZoneSameInstant(currentZoneId).toLocalDateTime();//转为SystemDefault
         String category = last_exercise.getCategory().toLowerCase();
         //获取两个时间的差值
@@ -356,13 +367,15 @@ System.out.println("这一天的日期是"+exercise.getStartTime().toLocalDate()
             ans.setTime(String.format("%d小时%d分%d秒",duration/3600,duration%3600/60,duration%60));
         ans.setCategory(last_exercise.getCategory().toLowerCase());
         //获取运动数据
-        Running now_running= runningService.updateRunning(last_exercise.getExerciseId());
-        ans.setDistance(now_running.getDistance());
-        int pace=now_running.getPace();//得到的是以秒为单位的
-        if(pace<60)
-            ans.setSpeed(String.format("%d秒",pace));
-        else
-            ans.setSpeed(String.format("%d分%d秒",pace/60,pace%60));
+        if(category.equalsIgnoreCase("walking")||category.equalsIgnoreCase("jogging")) {
+            Running now_running = runningService.updateRunning(last_exercise.getExerciseId());
+            ans.setDistance(now_running.getDistance());
+            int pace = now_running.getPace();//得到的是以秒为单位的
+            if (pace < 60)
+                ans.setSpeed(String.format("%d秒", pace));
+            else
+                ans.setSpeed(String.format("%d分%d秒", pace / 60, pace % 60));
+        }
         //计算卡路里
         int calorie = CalorieCalculator.getCalorie(category, weight, duration);
         ans.setCalorie(calorie);

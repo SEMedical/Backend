@@ -1,5 +1,6 @@
 package edu.tongji.backend.entity;
 
+import com.baomidou.mybatisplus.annotation.TableId;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -22,7 +23,7 @@ public class Exercise {
     private int calorie;
 
     private String category;
-
+    @TableId
     private int exerciseId;
     private double distance;
 }

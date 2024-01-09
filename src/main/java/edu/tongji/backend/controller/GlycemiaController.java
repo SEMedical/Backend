@@ -11,6 +11,7 @@ import edu.tongji.backend.service.IProfileService;
 import edu.tongji.backend.service.IUserService;
 import edu.tongji.backend.util.Jwt;
 import edu.tongji.backend.util.Response;
+import edu.tongji.backend.util.UserHelper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cglib.core.Local;
@@ -37,12 +38,8 @@ public class GlycemiaController {
         try {
             if(type.equals("realtime"))
                 type="Realtime";
-            String token = request.getHeader("Authorization");
-            System.out.println(token);
-            String user_id = Jwt.parse(token).get("userId").toString();
-            System.out.println(user_id + "````");
             //确认用户是否存在，是否是病人
-            this.checkUser(user_id);
+            String user_id = UserHelper.checkUser(userService,profileService,request);
             if (!type.equals("History") && !type.equals("Realtime"))
                 throw new GlycemiaException("type must be history or realtime");
             //history必须有time
@@ -66,15 +63,7 @@ public class GlycemiaController {
             return Response.fail("Unexpected external business exception or system error!");
         }
     }
-    private void checkUser(String user_id)
-    {
-        if(userService.getById(user_id)==null)
-            throw new AuthorityException("user doesn't exist");
-        else if(!userService.getById(user_id).getRole().equals("patient"))
-            throw new AuthorityException("user isn't a patient");
-        else if(profileService.getByPatientId(user_id)==null)
-            throw new AuthorityException("exception with registration of the user"+user_id);
-    }
+
     //Check if the format of date is valid and is in the range of (start,end)
     private LocalDate checkDate(String date,LocalDate start,LocalDate end){
         if(date !=null&&!date.matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"))
@@ -94,11 +83,8 @@ public class GlycemiaController {
                 span="Week";
             if(span.equals("month"))
                 span="Month";
-            String token = request.getHeader("Authorization");
-            System.out.println(token);
-            String user_id = Jwt.parse(token).get("userId").toString();
             //确认用户是否存在，是否是病人
-            this.checkUser(user_id);
+            String user_id = UserHelper.checkUser(userService,profileService,request);
             //check regex pattern for date must be yyyy-mm-dd and must older than 2023-12-01
             LocalDate formattedDate = this.checkDate(startDate, LocalDate.of(2023, 12, 1), LocalDate.now());
             //确认类型必须为history或realtime
@@ -122,11 +108,7 @@ public class GlycemiaController {
     @GetMapping("/isExercise")
     public Response<Intervals> GetExerciseIntervals(HttpServletRequest request,@RequestParam String type,@RequestParam String date){
         try {
-            String token = request.getHeader("Authorization");
-            System.out.println(token);
-            String user_id = Jwt.parse(token).get("userId").toString();
-            //确认用户是否存在，是否是病人
-            this.checkUser(user_id);
+            String user_id = UserHelper.checkUser(userService,profileService,request);
             //check regex pattern for date must be yyyy-mm-dd and must older than 2023-12-01
             LocalDate formattedDate = this.checkDate(date, LocalDate.of(2023, 12, 1), LocalDate.now().plusDays(1));
             //运动类型必须为慢跑或瑜伽...
@@ -146,11 +128,7 @@ public class GlycemiaController {
     @GetMapping("/realTime")
     public Response<Double> GetRealtimeGlycemia(HttpServletRequest request){
         try {
-            String token = request.getHeader("Authorization");
-            System.out.println(token);
-            String user_id =Jwt.parse(token).get("userId").toString();
-            //确认用户是否存在，是否是病人
-            this.checkUser(user_id);
+            String user_id = UserHelper.checkUser(userService,profileService,request);
             Double data=glycemiaService.getLatestGlycemia(user_id);
             return Response.success(data,"You've get the latest glycemia data!");
         }catch (GlycemiaException e){
@@ -164,12 +142,7 @@ public class GlycemiaController {
     @GetMapping("dailyHistory")
     public Response<DailyChart> GetDailyChart(HttpServletRequest request,@RequestParam String date){
         try {
-            String token = request.getHeader("Authorization");
-            System.out.println(token);
-            String user_id = Jwt.parse(token).get("userId").toString();
-            System.out.println(user_id + "````");
-            //确认用户是否存在，是否是病人
-            this.checkUser(user_id);
+            String user_id = UserHelper.checkUser(userService,profileService,request);
             //check regex pattern for date must be yyyy-mm-dd and must older than 2023-12-01
             LocalDate formattedDate = this.checkDate(date, LocalDate.of(2023, 12, 1), LocalDate.now().plusDays(1));
 
@@ -187,11 +160,7 @@ public class GlycemiaController {
     @GetMapping("/realTimePrompt")
     public Response<Tip> GetRealtimeTips(HttpServletRequest request){
         try {
-            String token = request.getHeader("Authorization");
-            System.out.println(token);
-            String user_id = Jwt.parse(token).get("userId").toString();
-            //确认用户是否存在，是否是病人
-            this.checkUser(user_id);
+            String user_id = UserHelper.checkUser(userService,profileService,request);
             //根据年龄判断血糖阈值
             Integer age=profileService.getById(user_id).getAge();
             Double data=glycemiaService.getLatestGlycemia(user_id);

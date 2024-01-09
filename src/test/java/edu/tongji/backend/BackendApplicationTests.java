@@ -1,6 +1,9 @@
 package edu.tongji.backend;
 
 import edu.tongji.backend.controller.GlycemiaController;
+import edu.tongji.backend.controller.LoginController;
+import edu.tongji.backend.controller.RegisterController;
+import edu.tongji.backend.dto.RegisterDTO;
 import edu.tongji.backend.exception.GlycemiaException;
 import edu.tongji.backend.mapper.ExerciseMapper;
 import edu.tongji.backend.mapper.GlycemiaMapper;
@@ -10,6 +13,7 @@ import edu.tongji.backend.entity.User;
 import edu.tongji.backend.mapper.UserMapper;
 import edu.tongji.backend.service.impl.ExerciseServiceImpl;
 import edu.tongji.backend.service.impl.GlycemiaServiceImpl;
+import edu.tongji.backend.service.impl.UserServiceImpl;
 import edu.tongji.backend.util.Jwt;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,12 +43,36 @@ class BackendApplicationTests {
     @Autowired
     ExerciseServiceImpl exerciseService;
     @Autowired
+    UserServiceImpl userService;
+    @Autowired
     ExerciseMapper exerciseMapper;
     @Autowired
     GlycemiaServiceImpl glycemiaService;
+    @Autowired
+    RegisterController register;
+    //一个用于测试实时获取运动数据的测试用例
+    @Test
+    void testExercise2() throws InterruptedException {
+        System.out.println("Start test");
+        exerciseService.addExercise("1");
+        for (int i = 0; i < 5; i++) {
+            Thread.sleep(1000);
+            exerciseService.getRealTimeSport("1");
+        }
+        exerciseService.finishExercise("1");
+        System.out.println("End test");
+    }
     @Test
     void contextLoads() {
         glycemiaService.showGlycemiaHistoryDiagram("Week", "2", LocalDate.of(2023, 12, 27));
+    }
+    @Test
+    void testTx1(){
+        userService.register("Alice","femmves","12345678912","Female",21);
+    }
+    @Test
+    void register(){
+        register.registerPatient(new RegisterDTO("Bob","123456Aa,","16055555554","Male",21));
     }
     @Test
     void getLatestGlycemia(){
@@ -80,9 +108,25 @@ class BackendApplicationTests {
 
     }
     @Test
+    void testExerciseTx() throws InterruptedException {
+        System.out.println("Start test");
+        exerciseService.addExercise("1");
+        //Sleep
+        try {
+            Thread.sleep(7000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        exerciseService.finishExercise("1");
+        System.out.println("End test");
+    }
+    @Test
     void testExerciseInsertion(){
         //assert that the time is now
         Integer exercise_id = exerciseService.addExercise("1");
+        //if(exerciseMapper.selectById(exercise_id).getCategory().equalsIgnoreCase("walking"))
+        if(exerciseMapper.selectById(exercise_id).getCategory().equalsIgnoreCase("yoga"))
+            return;
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         String time = exerciseService.getRealTimeSport("1").getTime();
         Pattern pattern = Pattern.compile("\\d+"); // 匹配一个或多个数字

@@ -11,7 +11,7 @@ public class CalorieCalculator {
         if (METMap.isEmpty())
             initMETMap();
         double MET = METMap.get(key);
-        double calorie = MET * weight * duration / 60.0;
+        double calorie =duration* MET * weight  / 60.0;
         return (int) Math.ceil(calorie);
     }
 

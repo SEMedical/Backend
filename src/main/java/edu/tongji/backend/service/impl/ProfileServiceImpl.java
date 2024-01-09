@@ -1,7 +1,9 @@
 package edu.tongji.backend.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import edu.tongji.backend.dto.ProfileDTO;
+import edu.tongji.backend.entity.Complication;
 import edu.tongji.backend.entity.Profile;
 import edu.tongji.backend.mapper.ComplicationMapper;
 import edu.tongji.backend.mapper.ProfileMapper;
@@ -86,6 +88,7 @@ public class ProfileServiceImpl extends ServiceImpl<ProfileMapper, Profile> impl
             profile.setGender("Female");
         }
         profile.setAge(profileDTO.getAge());
+        //身高体重前端传来的字符串形式为"xxkg"或"xxcm"，需要去掉单位
         profile.setWeight(Integer.valueOf(profileDTO.getWeight().substring(0, profileDTO.getWeight().length() - 2)));
         profile.setHeight(Integer.valueOf(profileDTO.getHeight().substring(0, profileDTO.getHeight().length() - 2)));
         if (Objects.equals(profileDTO.getDiabetesType(), "I型糖尿病")) {
@@ -103,10 +106,14 @@ public class ProfileServiceImpl extends ServiceImpl<ProfileMapper, Profile> impl
             profile.setDiagnosedYear(null);
         }
         profile.setFamilyHistory(profileDTO.getFamilyHistory());
-
+//前端传来的并发症字符串可以用任意一个字符分割
         List<String> complications = IComplicationService.parseComplicationStr(profileDTO.getComplications());
 
-//        System.out.println(complications);
+        System.out.println(complications);
+        //首先在complication表中删除该病人的所有并发症
+        QueryWrapper<Complication> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("patient_id", patientId);
+        complicationMapper.delete(queryWrapper);
 
         for (String complication : complications) {
             complicationMapper.insert(patientId, complication);
@@ -115,7 +122,7 @@ public class ProfileServiceImpl extends ServiceImpl<ProfileMapper, Profile> impl
         Profile dummy = profileMapper.getByPatientIdProfile(patientId);
         if (dummy == null) {
 
-//            System.out.println("insert");
+           System.out.println("insert");
 
             return profileMapper.insert(profile) == 1;
         }

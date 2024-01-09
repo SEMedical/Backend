@@ -30,7 +30,7 @@ public class ScenarioController {
             return Response.fail("用户不是病人");
         }
 
-        if (scenarioService.setScenario(userId, new Sport(category, minute))) {
+        if (scenarioService.setScenario(userId, new Sport(category.toLowerCase(), minute))) {
             return Response.success("设置成功", "success");
         } else {
             return Response.fail("设置失败");

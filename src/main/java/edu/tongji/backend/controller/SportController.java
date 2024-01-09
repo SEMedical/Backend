@@ -9,6 +9,7 @@ import edu.tongji.backend.service.IExerciseService;
 import edu.tongji.backend.service.IProfileService;
 import edu.tongji.backend.service.IRunningService;
 import edu.tongji.backend.service.IUserService;
+//import edu.tongji.backend.util.GlobalEventChecker;
 import edu.tongji.backend.util.Jwt;
 import edu.tongji.backend.util.Response;
 import edu.tongji.backend.util.TimeTypeChecker;
@@ -17,8 +18,6 @@ import org.apache.ibatis.jdbc.Null;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
-import java.util.LinkedList;
 
 @RestController//用于处理 HTTP 请求并返回 JSON 格式的数据
 @RequestMapping("/api/sports")//对应的api路径
@@ -58,6 +57,7 @@ public class SportController {
         else if(profileService.getByPatientId(user_id)==null)
             throw new GlycemiaException("exception with registration of the user"+user_id);
     }
+
     @GetMapping("/stopDoingSport") //对应的api路径
     public Response<Null> stopSport(HttpServletRequest request)//把请求中的内容映射到user
     {
