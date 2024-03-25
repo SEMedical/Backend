@@ -17,8 +17,9 @@
     </resultMap>
     <select id="selectByIdAndTime" resultType="java.lang.Double">
         SELECT glycemia FROM glycemia WHERE patient_id = #{id}
-        and MINUTE(record_time) DIV 15 = MINUTE( #{time} ) DIV 15 and HOUR(record_time) = HOUR( #{time} )
-        and DATE(record_time) = DATE( #{time} ) limit 1;
+        and record_time BETWEEN DATE( #{time} ) -INTERVAL(MINUTE( #{time} )%15) MINUTE
+                                      AND DATE( #{time} ) -INTERVAL(MINUTE( #{time} )%15-15) MINUTE
+        limit 1;
     </select>
     <select id="selectDailyArchive" resultMap="statisticsResultMap">
         SELECT max_glycemia,min_glycemia,avg_glycemia,hypo_percent,eu_percent,hyper_percent,record_date
@@ -27,7 +28,7 @@
     </select>
     <select id="getRealtimeGlycemia" resultMap="glycemiaDTOResultMap">
         SELECT glycemia,record_time FROM glycemia WHERE patient_id= #{userId}
-        ORDER BY ABS(TIMESTAMPDIFF(SECOND, record_time, NOW()))
+        ORDER BY record_time desc
         LIMIT 1;
     </select>
 </mapper>

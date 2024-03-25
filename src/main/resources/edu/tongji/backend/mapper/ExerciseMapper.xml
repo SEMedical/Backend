@@ -11,8 +11,8 @@
         FROM
         exercise
         WHERE
-        DATE(start_time) = #{date}
-        AND patient_id = #{userId}
+        patient_id = #{userId}
+        AND start_time between #{date} and #{date}+INTERVAL 1 DAY
         AND category = #{category}
     </select>
 </mapper>
